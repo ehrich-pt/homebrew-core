@@ -20,9 +20,9 @@ class OnlykeyAgent < Formula
 
   depends_on "certifi"
   depends_on "cryptography"
+  depends_on "cython"
   depends_on "gnupg"
   depends_on "hidapi"
-  depends_on "libcython"
   depends_on "libusb"
   depends_on "python@3.12"
 
@@ -203,6 +203,8 @@ class OnlykeyAgent < Formula
     ENV.append_to_cflags "-I#{Formula["libusb"].include}/libusb-1.0"
     # replacement for virtualenv_install_with_resources per https://docs.brew.sh/Python-for-Formula-Authors
     venv = virtualenv_create(libexec, python3)
+    # install setuptools first
+    venv.pip_install resource("setuptools")
     # build hidapi
     resource("hidapi").stage do
       # monkey patch hidapi's include paths to be the homebrew-installed path instead
@@ -214,14 +216,15 @@ class OnlykeyAgent < Formula
       end
       system python3, *Language::Python.setup_install_args(libexec, python3), "--with-system-hidapi"
     end
-    # now have pip build other resources except hidapi:
-    venv.pip_install resources.reject { |r| r.name == "hidapi" }
+    # now have pip build other resources except hidapi and setuptools:
+    skipped = %w[hidapi setuptools]
+    venv.pip_install resources.reject { |r| skipped.include? r.name }
     venv.pip_install_and_link buildpath
 
     # add path configuration file to find cython
     site_packages = Language::Python.site_packages(python3)
     pth_contents = <<~EOS
-      import site; site.addsitedir('#{Formula["libcython"].opt_libexec/site_packages}')
+      import site; site.addsitedir('#{Formula["cython"].opt_libexec/site_packages}')
     EOS
     (libexec/site_packages/"homebrew-onlykey-agent.pth").write pth_contents
   end
